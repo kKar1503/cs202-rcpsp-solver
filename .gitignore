@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Claude Code
+.claude/
+
+# Project spec & datasets (not committed for now)
+*.pdf
+updated_instances/
+updated_instances.zip
+
+# Local output logs
+/tmp/
+*.out
