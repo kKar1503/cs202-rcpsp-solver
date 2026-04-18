@@ -43,14 +43,6 @@ A steady-state GA evolves a population of **activity lists** (permutations decod
 - **Stagnation restart**: after 4000 generations with no improvement, the population is diversified (keep top 10%, regenerate the rest)
 - **Early exit**: after 5 consecutive fruitless restarts, the solver stops rather than burning remaining time
 
-## Other Files
-
-| File | Purpose |
-|------|---------|
-| `bnb_solver.py` | Branch-and-bound exact solver — used during development to verify optimal solutions, not part of the submission |
-| `validate.py` | Validates schedules against instances and runs batch quality sweeps |
-| `measure_ratio.py` | Measures approximation ratio of the heuristic solver against the B&B optimum |
-
 ### Algorithms and Techniques
 
 | Technique | Reference |
@@ -60,3 +52,11 @@ A steady-state GA evolves a population of **activity lists** (permutations decod
 | GA with activity-list encoding | Hartmann (1998) |
 | CPM lower bound | Standard critical path method |
 | GRPW priority rule | Kolisch (1996) |
+
+## Other Files
+
+| File | Purpose |
+|------|---------|
+| `bnb_solver.py` | Branch-and-bound exact solver — used during development to verify optimal solutions, not part of the submission |
+| `validate.py` | Validates schedules against instances and runs batch quality sweeps |
+| `measure_ratio.py` | Measures approximation ratio of the heuristic solver against the B&B optimum |
