@@ -309,7 +309,7 @@ def random_topological_list(inst: Instance, rng: random.Random) -> list[int]:
 
 
 def two_point_crossover(
-    inst: Instance, p1: list[int], p2: list[int], rng: random.Random
+    p1: list[int], p2: list[int], rng: random.Random
 ) -> list[int]:
     """Hartmann-style two-point crossover preserving topological validity.
 
@@ -343,7 +343,6 @@ def shift_mutation(
 ) -> list[int]:
     """Swap adjacent positions when the swap keeps topological order."""
     out = list(lst)
-    pos = {job: i for i, job in enumerate(out)}
     for i in range(len(out) - 1):
         if rng.random() >= rate:
             continue
@@ -352,7 +351,6 @@ def shift_mutation(
         if b in inst.successors[a]:
             continue
         out[i], out[i + 1] = b, a
-        pos[a], pos[b] = i + 1, i
     return out
 
 
@@ -421,7 +419,7 @@ def solve(inst: Instance, time_budget: float = TIME_BUDGET) -> Schedule | None:
             break
         p1 = tournament()
         p2 = tournament()
-        child = two_point_crossover(inst, p1, p2, rng)
+        child = two_point_crossover(p1, p2, rng)
         child = shift_mutation(inst, child, MUTATION_RATE, rng)
         sched = serial_sgs(inst, child)
         # Periodically justify promising offspring (within +1 of best).
