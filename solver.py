@@ -32,7 +32,7 @@ MUTATION_RATE = 0.15
 
 @dataclass
 class Schedule:
-    start: list[int]   # start[i] for i in 0..n+1
+    start: list[int] # start[i] for i in 0..n+1
     makespan: int
 
 
@@ -84,6 +84,10 @@ def serial_sgs(inst: Instance, activity_list: list[int]) -> Schedule:
     derived from predecessors, plus every distinct finish time of an already-scheduled
     job. Between two consecutive candidate times the resource profile is constant, so
     if a job fits at one candidate it fits at every t in [candidate, next_candidate).
+
+    The activity list must be topologically valid. As a safety net we enforce this by
+    scheduling jobs only when all their predecessors have already been placed; any
+    job whose predecessors aren't yet scheduled is deferred to later in the list.
     """
     n = inst.num_jobs
     dur = inst.durations
@@ -94,19 +98,29 @@ def serial_sgs(inst: Instance, activity_list: list[int]) -> Schedule:
 
     start = [0] * n
     finish = [0] * n
+    scheduled = [False] * n
 
     horizon = sum(dur) + 1
     # remaining[t][k] = capacity of resource k still free at time t.
     remaining = [cap[:] for _ in range(horizon + 1)]
     finish_times: set[int] = {0}
 
-    for job in activity_list:
+    # Topologically defensive iteration: if a job's predecessors aren't all scheduled
+    # yet, defer it to the end of the queue. This guarantees correctness even if the
+    # activity list is not strictly topologically ordered.
+    queue = list(activity_list)
+    while queue:
+        job = queue.pop(0)
+        if not all(scheduled[p] for p in preds[job]):
+            queue.append(job)
+            continue
         d = dur[job]
         r = dem[job]
         earliest = max((finish[p] for p in preds[job]), default=0)
         if d == 0:
             start[job] = earliest
             finish[job] = earliest
+            scheduled[job] = True
             continue
 
         candidates = sorted(t for t in finish_times if t >= earliest)
@@ -147,6 +161,7 @@ def serial_sgs(inst: Instance, activity_list: list[int]) -> Schedule:
 
         start[job] = chosen
         finish[job] = chosen + d
+        scheduled[job] = True
         finish_times.add(chosen + d)
         if any(rk > 0 for rk in r):
             for tau in range(chosen, chosen + d):
@@ -172,8 +187,15 @@ def backward_sgs(inst: Instance, activity_list: list[int], horizon: int) -> list
 
     finish = [horizon] * n
     remaining = [cap[:] for _ in range(horizon + 2)]
+    scheduled = [False] * n
 
-    for job in activity_list:
+    # Defensive: defer any job whose successors haven't all been placed yet.
+    queue = list(activity_list)
+    while queue:
+        job = queue.pop(0)
+        if not all(scheduled[s] for s in succs[job]):
+            queue.append(job)
+            continue
         d = dur[job]
         r = dem[job]
         latest = min((finish[s] - dur[s] for s in succs[job]), default=horizon)
@@ -198,6 +220,7 @@ def backward_sgs(inst: Instance, activity_list: list[int], horizon: int) -> list
                 break
             f -= 1
         finish[job] = f
+        scheduled[job] = True
         if d > 0 and any(rk > 0 for rk in r):
             for tau in range(f - d, f):
                 row = remaining[tau]
@@ -211,15 +234,30 @@ def justify(inst: Instance, sched: Schedule) -> Schedule:
     """Forward/backward justification: one right-shift then one left-shift.
 
     This cannot worsen makespan and often tightens it by 1–5 units on RCPSP instances.
+
+    We sort by (time, topo_rank) so that ties break in a precedence-respecting way —
+    critical for instances whose job numbering does not match a topological order.
     """
-    # Backward pass: order by decreasing start (latest first).
     horizon = sched.makespan
-    order_back = sorted(range(inst.num_jobs), key=lambda i: -sched.start[i])
+    topo = topo_order(inst)
+    topo_rank = [0] * inst.num_jobs
+    for rank, job in enumerate(topo):
+        topo_rank[job] = rank
+    reverse_rank = [inst.num_jobs - 1 - r for r in topo_rank]
+
+    # Backward pass: order by decreasing start (latest first); break ties by reverse topo.
+    order_back = sorted(
+        range(inst.num_jobs),
+        key=lambda i: (-sched.start[i], reverse_rank[i]),
+    )
     finish_back = backward_sgs(inst, order_back, horizon)
     start_back = [finish_back[i] - inst.durations[i] for i in range(inst.num_jobs)]
 
-    # Forward pass: order by increasing start of the backward schedule.
-    order_fwd = sorted(range(inst.num_jobs), key=lambda i: start_back[i])
+    # Forward pass: order by increasing start; break ties by forward topo.
+    order_fwd = sorted(
+        range(inst.num_jobs),
+        key=lambda i: (start_back[i], topo_rank[i]),
+    )
     new_sched = serial_sgs(inst, order_fwd)
 
     if new_sched.makespan <= sched.makespan:
@@ -374,7 +412,10 @@ def solve(inst: Instance, time_budget: float = TIME_BUDGET) -> Schedule | None:
         return sample[0][1]
 
     stagnation = 0
-    stagnation_limit = 4000  # generations of no global-best improvement → restart
+    stagnation_limit = 4000   # generations with no improvement → trigger a restart
+    restarts = 0
+    max_restarts = 5          # exit after this many fruitless restarts
+    best_at_last_restart = best.makespan
     while time.monotonic() - t0 < time_budget:
         if best.makespan <= cp_lb:
             break
@@ -397,7 +438,15 @@ def solve(inst: Instance, time_budget: float = TIME_BUDGET) -> Schedule | None:
             continue
         stagnation += 1
         if stagnation >= stagnation_limit:
-            # Diversification: keep the best individual, replace the rest with random lists.
+            # Check if this restart cycle found anything new.
+            if best.makespan < best_at_last_restart:
+                restarts = 0  # progress was made — reset the restart counter
+            else:
+                restarts += 1
+                if restarts >= max_restarts:
+                    break     # no progress across several restarts — exit early
+            best_at_last_restart = best.makespan
+            # Diversification: keep the best individuals, replace the rest.
             population.sort(key=lambda x: x[0])
             survivors = population[: max(2, POP_SIZE // 10)]
             population = list(survivors)
