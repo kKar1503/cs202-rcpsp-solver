@@ -15,6 +15,14 @@ Prints start times for jobs 1 through N as a comma-separated line. Prints `-1` i
 | `solver.py` | Main solver — run this |
 | `parser.py` | Parses PSPLIB-format instance files into an `Instance` dataclass |
 
+### Additional Development Files
+
+| File | Purpose |
+|------|---------|
+| `bnb_solver.py` | Branch-and-bound exact solver — used during development to verify optimal solutions, not part of the submission |
+| `validate.py` | Validates schedules against instances and runs batch quality sweeps |
+| `measure_ratio.py` | Measures approximation ratio of the heuristic solver against the B&B optimum |
+
 ## How It Works
 
 ### 1. Initial Solutions (Priority-Rule Heuristics)
@@ -52,11 +60,3 @@ A steady-state GA evolves a population of **activity lists** (permutations decod
 | GA with activity-list encoding | Hartmann (1998) |
 | CPM lower bound | Standard critical path method |
 | GRPW priority rule | Kolisch (1996) |
-
-## Other Files
-
-| File | Purpose |
-|------|---------|
-| `bnb_solver.py` | Branch-and-bound exact solver — used during development to verify optimal solutions, not part of the submission |
-| `validate.py` | Validates schedules against instances and runs batch quality sweeps |
-| `measure_ratio.py` | Measures approximation ratio of the heuristic solver against the B&B optimum |
